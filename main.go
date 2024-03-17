@@ -48,29 +48,26 @@ func fetchMapData() ([]byte, error) {
 	}
 	defer response.Body.Close()
 
-	body, err := ioutil.ReadAll(response.Body)
-	if err != nil {
-		return nil, err
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to fetch map data: %s", response.Status)
 	}
 
-	return body, nil
+	return ioutil.ReadAll(response.Body)
 }
 
 func main() {
 	mapData, err := fetchMapData()
 	if err != nil {
-		fmt.Println("Error fetching map data:", err)
+		fmt.Println("Error:", err)
 		return
 	}
 
 	osm := OSM{}
-	err = xml.Unmarshal(mapData, &osm)
-	if err != nil {
+	if err := xml.Unmarshal(mapData, &osm); err != nil {
 		fmt.Println("Error parsing XML:", err)
 		return
 	}
 
-	// Generate HTML file
 	file, err := os.Create("map.html")
 	if err != nil {
 		fmt.Println("Error creating HTML file:", err)
@@ -78,7 +75,6 @@ func main() {
 	}
 	defer file.Close()
 
-	// Write HTML header
 	file.WriteString("<!DOCTYPE html>\n<html>\n<head>\n<title>Map of The Beylik of Karaman and its Surrounding Territories</title>\n")
 	file.WriteString("<meta charset=\"utf-8\" />\n")
 	file.WriteString("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n")
@@ -87,20 +83,17 @@ func main() {
 	file.WriteString("<style> #map { height: 100%; width: 100%; } </style>\n")
 	file.WriteString("</head>\n<body>\n<div id=\"map\"></div>\n<script>\n")
 
-	// Write JavaScript for map rendering
 	file.WriteString("var map = L.map('map').setView([38, 32], 8);\n")
 	file.WriteString("L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {\n")
 	file.WriteString("attribution: '&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors'\n")
 	file.WriteString("}).addTo(map);\n")
 
-	// Write JavaScript for adding markers
 	for _, node := range osm.Nodes {
 		lat := node.Lat
 		lon := node.Lon
 		file.WriteString(fmt.Sprintf("L.marker([%s, %s]).addTo(map);\n", lat, lon))
 	}
 
-	// Write JavaScript for adding polygons
 	for _, way := range osm.Ways {
 		if way.Tags[0].Value == "administrative" {
 			file.WriteString("var latlngs = [\n")
@@ -118,7 +111,6 @@ func main() {
 		}
 	}
 
-	// Write JavaScript footer
 	file.WriteString("</script>\n</body>\n</html>")
 
 	fmt.Println("Map HTML file generated successfully.")
